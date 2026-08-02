@@ -1,91 +1,60 @@
--- 1)Find all customers whose total revenue generated is strictly greater than the average total revenue calculated across all individual customers in the database.
+-- 1)Find the top 5 customers who have generated the highest total revenue. Display the customer company name and the total revenue (considering unit price, quantity, and discount). Sort the results from highest to lowest revenue.
 
-WITH CustomerRevenue AS(
-	SELECT c.CustomerID,
-		   c.CompanyName,
-		   sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS Revenue
-	FROM Customers c
-	JOIN Orders o ON c.CustomerID=o.CustomerID
-	JOIN "Order Details" od ON o.OrderID=od.OrderID
-	GROUP BY c.CustomerID,
-			 c.CompanyName
-)
+SELECT c.CustomerID, 
+	c.CompanyName, 
+	sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS Revenue
+FROM "Order Details" od
+JOIN Orders o ON od.OrderID=o.OrderID
+JOIN Customers c ON o.CustomerID=c.CustomerID
+GROUP BY c.CustomerID,
+	c.CompanyName
+ORDER BY Revenue DESC
+LIMIT 5 ;
 
-SELECT CustomerID,
-	   CompanyName,
-	   Revenue
-FROM CustomerRevenue
-WHERE Revenue>(SELECT avg(Revenue)
-			   FROM CustomerRevenue) ;
+-- 2)Display the monthly sales performance of the company. Show the year-month of the order date, the total number of orders placed, and the total revenue generated for each month. Sort the results chronologically from oldest to newest.
 
--- 2)Find the supplier(s) whose average product price is higher than the overall average product price across all suppliers. Display the supplier company name and its average product price.
+SELECT TO_CHAR(o.OrderDate, 'YYYY-MM') AS Month ,
+		count(DISTINCT(o.OrderID)) AS "Total number of orders",
+		sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS Revenue
+FROM Orders o
+JOIN "Order Details" od ON o.OrderID=od.OrderID
+GROUP BY 1
+ORDER BY Month ASC;
 
-WITH SupplierAveragePrice AS (
-	SELECT avg(p.UnitPrice) AS AverageProductPrice,
-		   s.SupplierID ,
-		   s.CompanyName AS SupplierCompany
-	FROM Suppliers s
-	JOIN Products p ON s.SupplierID=p.SupplierID
-	GROUP BY s.SupplierID , s.CompanyName
-)
+-- 3)Find the total number of unique orders placed by each customer. Display the customer company name and the total count of distinct orders, ensuring that duplicate item rows do not inflate the order totals.
 
-SELECT SupplierCompany,
-	   AverageProductPrice
-FROM SupplierAveragePrice
-WHERE AverageProductPrice > (SELECT avg(AverageProductPrice)
-							 FROM SupplierAveragePrice) ;
+SELECT c.CustomerID AS CustomerID, 
+	c.CompanyName AS "The customer company name", 
+	count(DISTINCT(o.OrderID)) AS "The total number of unique orders" 
+FROM Customers c
+JOIN Orders o ON c.CustomerID=o.CustomerID
+GROUP BY c.CustomerID , 
+	c.CompanyName ;
 
--- 3)Find the customers who have purchased products from the highest number of different categories. Display the customer company name and the total number of distinct categories purchased.
 
-WITH DifferentCategories AS(
-	SELECT count(DISTINCT(ca.CategoryID)) AS DistinctCategories ,
-		   cu.CustomerID ,
-		   cu.CompanyName AS CustomerCompany
-	FROM Customers cu
-	JOIN Orders o ON cu.CustomerID=o.CustomerID
-	JOIN "Order Details" od ON o.OrderID=od.OrderID
-	JOIN Products p ON od.ProductID=p.ProductID
-	JOIN Categories ca ON p.CategoryID=ca.CategoryID
-	GROUP BY cu.CustomerID ,
-			 cu.CompanyName
-)
+-- 4)Analyze the shipping data to see the impact of missing region information. Display the shipping company name, the total number of all orders handled, and the total number of orders that have a valid (non-null) shipping region.
 
-SELECT CustomerCompany ,DistinctCategories
-FROM DifferentCategories
-WHERE DistinctCategories = (SELECT max(DistinctCategories)
-							FROM DifferentCategories ) ;
+SELECT sh.CompanyName,
+	count(OrderID) AS "The total number of all orders",
+	count(ShipRegion) AS "Orders with Valid Region"
+FROM Orders o
+JOIN Shippers sh ON o.ShipVia=sh.ShipperID
+GROUP BY sh.CompanyName ;
 
--- 4) Find the customers who have placed at least 5 orders, and calculate their Average Order Value (total revenue divided by total number of orders). Display the customer company name, total order count, and their Average Order Value.
+-- 5)Find all employees who have successfully sold more than 50 distinct products across all their handled orders. Display the employee's full name and the total number of unique products sold. Sort the results by the number of unique products in descending order.
 
-WITH AverageOrderValue AS( 
-	SELECT c.CustomerID ,
-		   c.CompanyName AS CustomerCompany,
-		   count(DISTINCT(o.OrderID)) AS TotalOrderCount ,
-		   sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS TotalRevenue
-	FROM Customers c
-	JOIN Orders o 
-	ON c.CustomerID=o.CustomerID
-	JOIN "Order Details" od
-	ON o.OrderID=od.OrderID
-	GROUP BY c.CustomerID, c.CompanyName
-)
-
-SELECT CustomerCompany ,
-	   TotalOrderCount ,
-	   TotalRevenue/TotalOrderCount AS AverageOrder
-FROM AverageOrderValue
-WHERE TotalOrderCount>=5 ;
-
--- 5) Find all product categories whose total units in stock are strictly less than the average total units in stock calculated across all categories. Display the category name and its total units in stock.
-
-WITH Stock AS(
-SELECT c.CategoryName AS ProductCategoryName, sum(p.UnitsInStock) AS TotalUnitsInStock
-FROM Categories c
-JOIN Products p ON c.CategoryID=p.CategoryID
-GROUP BY c.CategoryName
-)
-
-SELECT ProductCategoryName ,  TotalUnitsInStock
-FROM Stock 
-WHERE TotalUnitsInStock < (SELECT avg(TotalUnitsInStock)
-			  FROM Stock) ;
+SELECT e.EmployeeID , 
+	e.FirstName || ' ' || e.LastName AS FullName,
+	count(DISTINCT(p.ProductID)) AS "The total number of unique products sold"
+FROM Employees e
+JOIN Orders o 
+ON e.EmployeeID=o.EmployeeID
+JOIN "Order Details" od 
+ON o.OrderID=od.OrderID
+JOIN Products p 
+ON od.ProductID=p.ProductID
+GROUP BY e.EmployeeID ,
+		e.FirstName,
+		e.LastName
+HAVING count(DISTINCT(p.ProductID)) > 50
+ORDER BY 3 DESC ;
