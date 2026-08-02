@@ -1,60 +1,66 @@
--- 1)Find the top 5 customers who have generated the highest total revenue. Display the customer company name and the total revenue (considering unit price, quantity, and discount). Sort the results from highest to lowest revenue.
+-- 1) Find all customers who ordered products supplied by companies located in the USA. Display the customer company name, supplier company, product name, and order date.
 
-SELECT c.CustomerID, 
-	c.CompanyName, 
-	sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS Revenue
-FROM "Order Details" od
-JOIN Orders o ON od.OrderID=o.OrderID
-JOIN Customers c ON o.CustomerID=c.CustomerID
-GROUP BY c.CustomerID,
-	c.CompanyName
-ORDER BY Revenue DESC
-LIMIT 5 ;
-
--- 2)Display the monthly sales performance of the company. Show the year-month of the order date, the total number of orders placed, and the total revenue generated for each month. Sort the results chronologically from oldest to newest.
-
-SELECT TO_CHAR(o.OrderDate, 'YYYY-MM') AS Month ,
-		count(DISTINCT(o.OrderID)) AS "Total number of orders",
-		sum(od.UnitPrice*od.Quantity*(1-od.Discount)) AS Revenue
-FROM Orders o
-JOIN "Order Details" od ON o.OrderID=od.OrderID
-GROUP BY 1
-ORDER BY Month ASC;
-
--- 3)Find the total number of unique orders placed by each customer. Display the customer company name and the total count of distinct orders, ensuring that duplicate item rows do not inflate the order totals.
-
-SELECT c.CustomerID AS CustomerID, 
-	c.CompanyName AS "The customer company name", 
-	count(DISTINCT(o.OrderID)) AS "The total number of unique orders" 
+SELECT c.CompanyName as CustomerCompany, 
+	s.CompanyName as SupplierCompany, 
+	p.ProductName , 
+	o.OrderDate
 FROM Customers c
-JOIN Orders o ON c.CustomerID=o.CustomerID
-GROUP BY c.CustomerID , 
-	c.CompanyName ;
+INNER JOIN Orders o ON c.CustomerID=o.CustomerID
+INNER JOIN "Order Details" od ON o.OrderID=od.OrderID
+INNER JOIN Products p ON od.ProductID=p.ProductID
+INNER JOIN Suppliers s ON s.SupplierID=p.SupplierID
+WHERE s.Country='USA' ;
 
+-- 2) Display all shipping companies with their assigned orders placed between January 1, 2013 and December 31, 2015. Show the shipping company, order ID, customer company name, and order date.
 
--- 4)Analyze the shipping data to see the impact of missing region information. Display the shipping company name, the total number of all orders handled, and the total number of orders that have a valid (non-null) shipping region.
+SELECT sh.CompanyName AS ShippingCompany , 
+	o.OrderID , 
+	c.CompanyName AS CustomerCompany , 
+	o.OrderDate
+FROM Shippers sh
+LEFT JOIN Orders o ON sh.ShipperID=o.ShipVia
+LEFT JOIN Customers c ON o.CustomerID=c.CustomerID
+WHERE o.OrderDate BETWEEN '2013-01-01' AND '2015-12-31'
+ORDER BY o.OrderDate ASC ;
 
-SELECT sh.CompanyName,
-	count(OrderID) AS "The total number of all orders",
-	count(ShipRegion) AS "Orders with Valid Region"
-FROM Orders o
-JOIN Shippers sh ON o.ShipVia=sh.ShipperID
-GROUP BY sh.CompanyName ;
+-- 3)Display the 10 products with the highest unit price that belong to the Beverages category. Show the product name, category name, supplier company, and unit price.
 
--- 5)Find all employees who have successfully sold more than 50 distinct products across all their handled orders. Display the employee's full name and the total number of unique products sold. Sort the results by the number of unique products in descending order.
+SELECT p.ProductName , 
+	c.CategoryName , 
+	s.CompanyName AS SupplierCompany , 
+	p.UnitPrice
+FROM Products p
+INNER JOIN Categories c ON p.CategoryID=c.CategoryID
+INNER JOIN Suppliers s ON p.SupplierID=s.SupplierID
+WHERE c.CategoryName='Beverages'
+ORDER BY p.UnitPrice DESC
+LIMIT 10 ;
 
-SELECT e.EmployeeID , 
-	e.FirstName || ' ' || e.LastName AS FullName,
-	count(DISTINCT(p.ProductID)) AS "The total number of unique products sold"
+-- 4)Display the first 10 orders handled by employees whose Title is "Sales Representative". Show the employee full name, customer company name, shipping company, and order date.
+
+SELECT e.FirstName || ' ' || e.LastName AS FullName , 
+	c.CompanyName AS CustomerCompany , 
+	sh.CompanyName AS ShipperCompany , 
+	o.OrderDate
 FROM Employees e
-JOIN Orders o 
-ON e.EmployeeID=o.EmployeeID
-JOIN "Order Details" od 
-ON o.OrderID=od.OrderID
-JOIN Products p 
-ON od.ProductID=p.ProductID
-GROUP BY e.EmployeeID ,
-		e.FirstName,
-		e.LastName
-HAVING count(DISTINCT(p.ProductID)) > 50
-ORDER BY 3 DESC ;
+INNER JOIN Orders o ON e.EmployeeID=o.EmployeeID
+INNER JOIN Shippers sh ON o.ShipVia=sh.ShipperID
+INNER JOIN Customers c ON o.CustomerID=c.CustomerID
+WHERE e.Title='Sales Representative'
+ORDER BY o.OrderDate ASC 
+LIMIT 10 ;
+
+-- 5)Find all orders shipped via Federal Shipping that contain products from the Seafood category. Display the customer company name, product name, shipping company, and order date.
+
+SELECT cu.CompanyName AS CustomerCompany , 
+	p.ProductName ,
+	sh.CompanyName AS ShipperCompany ,  
+	o.OrderDate
+FROM Shippers sh
+INNER JOIN Orders o ON sh.ShipperID=o.ShipVia
+INNER JOIN Customers cu ON cu.CustomerID=o.CustomerID
+INNER JOIN "Order Details" od ON od.OrderID=o.OrderID
+INNER JOIN Products p ON p.ProductID=od.ProductID
+INNER JOIN Categories ca  ON ca.CategoryID=p.CategoryID
+WHERE sh.CompanyName='Federal Shipping'
+AND ca.CategoryName='Seafood' ;
